@@ -1,0 +1,51 @@
+{
+  "name": "wiki-plugin-semindex",
+  "version": "0.1.0",
+  "description": "Federated Wiki plugin — builds the farm's semantic vector indexes in-process (worker thread, transformers.js) so federated search needs no external indexer",
+  "keywords": [
+    "wiki",
+    "federated wiki",
+    "plugin",
+    "semantic search",
+    "embeddings",
+    "indexer"
+  ],
+  "author": {
+    "name": "David Bovill",
+    "url": "https://github.com/Hitchhikers-Guide-to-the-Galaxy"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "client/semindex.js",
+  "files": [
+    "client",
+    "server",
+    "pages",
+    "factory.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-semindex.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-semindex/issues"
+  },
+  "homepage": "https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-semindex#readme",
+  "engines": {
+    "node": ">=18.19"
+  },
+  "scripts": {
+    "build": "npm run clean && node --no-warnings scripts/build-client.js",
+    "dev": "node --no-warnings scripts/build-client.js --watch",
+    "clean": "rm -f client/semindex.js client/semindex.js.map",
+    "test": "node --test",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "onnxruntime-web": "1.14.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

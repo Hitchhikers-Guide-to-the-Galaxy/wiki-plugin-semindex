@@ -1,0 +1,58 @@
+{
+  "title": "About SemIndex Plugin",
+  "story": [
+    {
+      "type": "markdown",
+      "id": "5089c35d04cdad90",
+      "text": "The SemIndex plugin is the farm's semantic-index WRITER. It embeds every page of every site in the farm (BAAI/bge-small-en-v1.5, 384-dim) in a background worker thread and writes each site's semantic-vectors.json — so federated semantic search works with no Python, no FastAPI, and no external indexer. The [[About Similarity Plugin]] is the matching reader; install both for fully local search."
+    },
+    {
+      "type": "semindex",
+      "id": "fa8383bc59188fc4",
+      "text": ""
+    },
+    {
+      "type": "markdown",
+      "id": "7ea58be9f3ded594",
+      "text": "# Routes\n\n- GET /system/semindex-status.json — build, queue and model-download status (polled by the widget above)\n- GET|POST /system/semindex-build.json?domains=glob&force=1 — enqueue builds, owner or admin only\n- GET /system/semindex-embed.json?text=… — embed one text; a remote slim Similarity can point WIKI_EMBED_URL here"
+    },
+    {
+      "type": "markdown",
+      "id": "fd5c947526d0693b",
+      "text": "# Configuration\n\nEnvironment variables, all optional:\n\n- WIKI_SEMINDEX_MODE — off | query-only | writer (default writer). One writer per synced farm: keep mirrors on query-only.\n- WIKI_SEMINDEX_SCAN_MS — freshness scan interval (default 10 min)\n- WIKI_SEMINDEX_SETTLE_MS — quiet period after edits before rebuilding (default 5 min)\n- WIKI_SEMINDEX_THROTTLE_MS — pause between page embeds (default 50)\n- WIKI_SEMINDEX_IDLE_MS — worker idle timeout before the model's memory is released (default 10 min)\n- WIKI_SEMINDEX_MIN_PAGES — skip sites smaller than this (default 1)\n- WIKI_MODEL_CACHE — model download cache (default ~/.cache/wiki-semindex, ~130MB on first run)\n- WIKI_EMBED_FORCE_WASM=1 — force the WASM backend (automatic on musl/Alpine)\n- WIKI_EMBED_QUANTIZED=1 — int8 model (~34MB) for low-memory servers\n- WIKI_SEMINDEX_MAINTENANCE=1 — write a .semindex/maintenance.json flag during builds for a security-module maintenance gate"
+    },
+    {
+      "type": "markdown",
+      "id": "82915075ee65a796",
+      "text": "# Repositories\n\n- [https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-semindex github]\n- [https://www.npmjs.com/package/wiki-plugin-semindex npm]"
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "About SemIndex Plugin",
+        "story": [
+          {
+            "type": "markdown",
+            "id": "5089c35d04cdad90",
+            "text": "The SemIndex plugin is the farm's semantic-index WRITER."
+          }
+        ]
+      },
+      "date": 1784593991535,
+      "provenance": "from marvin"
+    },
+    {
+      "type": "add",
+      "id": "82915075ee65a796",
+      "item": {
+        "type": "markdown",
+        "id": "82915075ee65a796",
+        "text": "# Repositories\n\n- [https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-semindex github]\n- [https://www.npmjs.com/package/wiki-plugin-semindex npm]"
+      },
+      "date": 1784620581896
+    }
+  ],
+  "plugin": "semindex"
+}
