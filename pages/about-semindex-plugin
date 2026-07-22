@@ -4,7 +4,7 @@
     {
       "type": "markdown",
       "id": "5089c35d04cdad90",
-      "text": "The SemIndex plugin is the farm's semantic-index WRITER. It embeds every page of every site in the farm (BAAI/bge-small-en-v1.5, 384-dim) in a background worker thread and writes each site's semantic-vectors.json — so federated semantic search works with no Python, no FastAPI, and no external indexer. The [[About Similarity Plugin]] is the matching reader; install both for fully local search."
+      "text": "The SemIndex plugin is the farm's semantic-index WRITER. It embeds every page of every site in the farm (BAAI/bge-small-en-v1.5, 384-dim) in a supervised background child process and writes each site's semantic-vectors.json \u2014 so federated semantic search works with no Python, no FastAPI, and no external indexer. The [[About Similarity Plugin]] is the matching reader; install both for fully local search."
     },
     {
       "type": "semindex",
@@ -14,12 +14,17 @@
     {
       "type": "markdown",
       "id": "7ea58be9f3ded594",
-      "text": "# Routes\n\n- GET /system/semindex-status.json — build, queue and model-download status (polled by the widget above)\n- GET|POST /system/semindex-build.json?domains=glob&force=1 — enqueue builds, owner or admin only\n- GET /system/semindex-embed.json?text=… — embed one text; a remote slim Similarity can point WIKI_EMBED_URL here"
+      "text": "# Routes\n\n- GET /system/semindex-status.json \u2014 build, queue and model-download status (polled by the widget above)\n- GET|POST /system/semindex-build.json?domains=glob&force=1 \u2014 enqueue builds, owner or admin only\n- GET /system/semindex-embed.json?text=\u2026 \u2014 embed one text; a remote slim Similarity can point WIKI_EMBED_URL here"
     },
     {
       "type": "markdown",
       "id": "fd5c947526d0693b",
-      "text": "# Configuration\n\nEnvironment variables, all optional:\n\n- WIKI_SEMINDEX_MODE — off | query-only | writer (default writer). One writer per synced farm: keep mirrors on query-only.\n- WIKI_SEMINDEX_SCAN_MS — freshness scan interval (default 10 min)\n- WIKI_SEMINDEX_SETTLE_MS — quiet period after edits before rebuilding (default 5 min)\n- WIKI_SEMINDEX_THROTTLE_MS — pause between page embeds (default 50)\n- WIKI_SEMINDEX_IDLE_MS — worker idle timeout before the model's memory is released (default 10 min)\n- WIKI_SEMINDEX_MIN_PAGES — skip sites smaller than this (default 1)\n- WIKI_MODEL_CACHE — model download cache (default ~/.cache/wiki-semindex, ~130MB on first run)\n- WIKI_EMBED_FORCE_WASM=1 — force the WASM backend (automatic on musl/Alpine)\n- WIKI_EMBED_QUANTIZED=1 — int8 model (~34MB) for low-memory servers\n- WIKI_SEMINDEX_MAINTENANCE=1 — write a .semindex/maintenance.json flag during builds for a security-module maintenance gate"
+      "text": "# Configuration\n\nEnvironment variables, all optional:\n\n- WIKI_SEMINDEX_MODE \u2014 off | query-only | writer (default writer). One writer per synced farm: keep mirrors on query-only.\n- WIKI_SEMINDEX_SCAN_MS \u2014 freshness scan interval (default 10 min)\n- WIKI_SEMINDEX_SETTLE_MS \u2014 quiet period after edits before rebuilding (default 5 min)\n- WIKI_SEMINDEX_THROTTLE_MS \u2014 pause between page embeds (default 50)\n- WIKI_SEMINDEX_IDLE_MS \u2014 embedder idle timeout before the model's memory is released (default 10 min)\n- WIKI_SEMINDEX_MIN_PAGES \u2014 skip sites smaller than this (default 1)\n- WIKI_MODEL_CACHE \u2014 model download cache (default ~/.cache/wiki-semindex, ~130MB on first run)\n- WIKI_EMBED_FORCE_WASM=1 \u2014 force the WASM backend (automatic on musl/Alpine)\n- WIKI_EMBED_QUANTIZED=1 \u2014 int8 model (~34MB) for low-memory servers\n- WIKI_SEMINDEX_MAINTENANCE=1 \u2014 write a .semindex/maintenance.json flag during builds for a security-module maintenance gate\n- WIKI_SEMINDEX_TIMEOUT_MS \u2014 per-embed timeout (default 5 min)\n- WIKI_EMBED_CHILD_HEAP_MB \u2014 embed child V8 heap cap (default 512)\n- WIKI_EMBED_MAX_CRASHES / WIKI_EMBED_CRASH_WINDOW_MS / WIKI_EMBED_COOLDOWN_MS \u2014 circuit breaker: crashes tolerated per window (default 3 / 10 min) before embedding pauses for the cooldown (default 5 min)"
+    },
+    {
+      "type": "markdown",
+      "id": "827ea31bca31c963",
+      "text": "**Version:** 0.2.0\n\nSince 0.2.0 the embedder runs in a supervised child process rather than a worker thread, so a fatal error in the ONNX runtime (abort, out-of-memory, bad model file) can never take down the wiki server: it fails that one embed, and repeated crashes trip a circuit breaker that pauses indexing while it cools down. Same isolation strategy as the Similarity plugin 0.9.0."
     },
     {
       "type": "markdown",
@@ -52,6 +57,37 @@
         "text": "# Repositories\n\n- [https://github.com/Hitchhikers-Guide-to-the-Galaxy/wiki-plugin-semindex github]\n- [https://www.npmjs.com/package/wiki-plugin-semindex npm]"
       },
       "date": 1784620581896
+    },
+    {
+      "type": "edit",
+      "id": "5089c35d04cdad90",
+      "item": {
+        "type": "markdown",
+        "id": "5089c35d04cdad90",
+        "text": "The SemIndex plugin is the farm's semantic-index WRITER. It embeds every page of every site in the farm (BAAI/bge-small-en-v1.5, 384-dim) in a supervised background child process and writes each site's semantic-vectors.json \u2014 so federated semantic search works with no Python, no FastAPI, and no external indexer. The [[About Similarity Plugin]] is the matching reader; install both for fully local search."
+      },
+      "date": 1784706396574
+    },
+    {
+      "type": "edit",
+      "id": "fd5c947526d0693b",
+      "item": {
+        "type": "markdown",
+        "id": "fd5c947526d0693b",
+        "text": "# Configuration\n\nEnvironment variables, all optional:\n\n- WIKI_SEMINDEX_MODE \u2014 off | query-only | writer (default writer). One writer per synced farm: keep mirrors on query-only.\n- WIKI_SEMINDEX_SCAN_MS \u2014 freshness scan interval (default 10 min)\n- WIKI_SEMINDEX_SETTLE_MS \u2014 quiet period after edits before rebuilding (default 5 min)\n- WIKI_SEMINDEX_THROTTLE_MS \u2014 pause between page embeds (default 50)\n- WIKI_SEMINDEX_IDLE_MS \u2014 embedder idle timeout before the model's memory is released (default 10 min)\n- WIKI_SEMINDEX_MIN_PAGES \u2014 skip sites smaller than this (default 1)\n- WIKI_MODEL_CACHE \u2014 model download cache (default ~/.cache/wiki-semindex, ~130MB on first run)\n- WIKI_EMBED_FORCE_WASM=1 \u2014 force the WASM backend (automatic on musl/Alpine)\n- WIKI_EMBED_QUANTIZED=1 \u2014 int8 model (~34MB) for low-memory servers\n- WIKI_SEMINDEX_MAINTENANCE=1 \u2014 write a .semindex/maintenance.json flag during builds for a security-module maintenance gate\n- WIKI_SEMINDEX_TIMEOUT_MS \u2014 per-embed timeout (default 5 min)\n- WIKI_EMBED_CHILD_HEAP_MB \u2014 embed child V8 heap cap (default 512)\n- WIKI_EMBED_MAX_CRASHES / WIKI_EMBED_CRASH_WINDOW_MS / WIKI_EMBED_COOLDOWN_MS \u2014 circuit breaker: crashes tolerated per window (default 3 / 10 min) before embedding pauses for the cooldown (default 5 min)"
+      },
+      "date": 1784706396574
+    },
+    {
+      "type": "add",
+      "id": "827ea31bca31c963",
+      "item": {
+        "type": "markdown",
+        "id": "827ea31bca31c963",
+        "text": "**Version:** 0.2.0\n\nSince 0.2.0 the embedder runs in a supervised child process rather than a worker thread, so a fatal error in the ONNX runtime (abort, out-of-memory, bad model file) can never take down the wiki server: it fails that one embed, and repeated crashes trip a circuit breaker that pauses indexing while it cools down. Same isolation strategy as the Similarity plugin 0.9.0."
+      },
+      "after": "fd5c947526d0693b",
+      "date": 1784706396574
     }
   ],
   "plugin": "semindex"
