@@ -1,6 +1,6 @@
 {
   "name": "wiki-plugin-semindex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Federated Wiki plugin — builds the farm's semantic vector indexes in-process (worker thread, transformers.js) so federated search needs no external indexer",
   "keywords": [
     "wiki",
@@ -18,10 +18,11 @@
   "type": "module",
   "main": "client/semindex.js",
   "files": [
+    "api",
     "client",
-    "server",
+    "factory.json",
     "pages",
-    "factory.json"
+    "server"
   ],
   "repository": {
     "type": "git",
@@ -47,5 +48,11 @@
   },
   "devDependencies": {
     "esbuild": "^0.25.0"
+  },
+  "fedwiki": {
+    "api": {
+      "version": 1,
+      "spec": "api/openapi.json"
+    }
   }
 }

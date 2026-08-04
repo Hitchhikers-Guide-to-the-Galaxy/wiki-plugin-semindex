@@ -1,0 +1,121 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SemIndex",
+    "version": "0.2.0",
+    "description": "The farm's semantic-index writer. Builds semantic-vectors.json for every site of the farm in a worker thread, so a wiki gets federated semantic search with no external service. wiki-plugin-similarity is the matching reader. These routes are served by this plugin's own server and are described here, not mounted by the farm — every one of them needs something a plain handler cannot have: the caller's identity, their address, or a status code that carries meaning."
+  },
+  "paths": {
+    "/system/semindex-status.json": {
+      "get": {
+        "operationId": "status",
+        "summary": "What the indexer is doing",
+        "description": "Build state, queue, and the embedder's health. Polled by the SemIndex item to show progress. Read-only and ungated.",
+        "x-fedwiki-served-by": "plugin",
+        "x-fedwiki-read-only": true,
+        "responses": {
+          "200": {
+            "description": "Current state of this farm's indexer.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Status" } } }
+          }
+        }
+      }
+    },
+    "/system/semindex-build.json": {
+      "get": {
+        "operationId": "buildByGet",
+        "summary": "Ask for an index build",
+        "description": "Enqueues builds for the matching domains. Owner or admin only. Also accepts POST, which is the form the old FastAPI indexer used, so a remote similarity plugin can point WIKI_INDEXER_URL here unchanged.",
+        "x-fedwiki-served-by": "plugin",
+        "x-fedwiki-writes": true,
+        "parameters": [
+          { "name": "domains", "in": "query", "required": false, "description": "Comma-separated globs naming which sites to index.", "schema": { "type": "string", "default": "*" } },
+          { "name": "force", "in": "query", "required": false, "description": "Rebuild even where the index looks current.", "schema": { "type": "string", "enum": ["1"] } }
+        ],
+        "responses": {
+          "200": { "description": "What was queued, and the state afterwards.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Build" } } } },
+          "403": { "description": "Not the owner or an admin. Under the default read-only security module this is everybody, which makes build triggers inert on an unowned wiki — correct, because there the background scan does the indexing." },
+          "409": { "description": "This farm is not running as a writer, so it will not build. One writer per synced farm." }
+        }
+      },
+      "post": {
+        "operationId": "build",
+        "summary": "Ask for an index build",
+        "description": "The same operation as the GET, taking domains and force in a JSON body instead.",
+        "x-fedwiki-served-by": "plugin",
+        "x-fedwiki-writes": true,
+        "responses": {
+          "200": { "description": "What was queued, and the state afterwards.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Build" } } } },
+          "403": { "description": "Not the owner or an admin." },
+          "409": { "description": "This farm is not running as a writer." }
+        }
+      }
+    },
+    "/system/semindex-embed.json": {
+      "get": {
+        "operationId": "embed",
+        "summary": "Turn one text into a vector",
+        "description": "Embeds a single string with the farm's own model, so a slim remote similarity can point WIKI_EMBED_URL here. Rate-limited per caller address — thirty at once, refilling one a second — which is why it cannot be a farm-mounted operation: a handler never sees who is asking.",
+        "x-fedwiki-served-by": "plugin",
+        "x-fedwiki-read-only": true,
+        "parameters": [
+          { "name": "text", "in": "query", "required": true, "description": "The text to embed.", "schema": { "type": "string" }, "x-fedwiki-example": "federated wiki" },
+          { "name": "q", "in": "query", "required": false, "description": "Accepted as an alias for text.", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "The vector, and which model made it.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Embedding" } } } },
+          "400": { "description": "No text was given." },
+          "429": { "description": "Too many embeddings from this address just now." },
+          "500": { "description": "The embedder failed." }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Status": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "string" },
+          "plugin": { "type": "string" },
+          "mode": { "type": "string", "enum": ["off", "query-only", "writer"], "description": "Only a writer builds. One writer per synced farm." },
+          "state": { "type": "string", "description": "idle, or what it is doing now." },
+          "building": { "type": ["string", "null"], "description": "The domain being indexed, if any." },
+          "queue": { "type": "array", "items": { "type": "string" }, "description": "Domains waiting." },
+          "lastBuild": { "type": "object", "description": "Per domain: when it last built, how many pages, how many embedded, how long it took." },
+          "embedder": { "$ref": "#/components/schemas/Embedder" },
+          "model": { "type": "string" },
+          "dim": { "type": "integer" },
+          "quantized": { "type": "boolean" }
+        }
+      },
+      "Embedder": {
+        "type": "object",
+        "description": "The model is run in a child process on purpose, so a crash in it costs an embedding rather than the wiki.",
+        "properties": {
+          "loaded": { "type": "boolean" },
+          "backend": { "type": ["string", "null"], "description": "native or wasm." },
+          "download": { "type": ["object", "null"], "description": "Progress, while the model is being fetched." },
+          "error": { "type": ["string", "null"] },
+          "pending": { "type": "integer" },
+          "isolation": { "type": "string" },
+          "recentCrashes": { "type": "integer" },
+          "breakerOpenUntil": { "type": ["integer", "null"], "description": "While set, embedding is refused until the crashes stop." }
+        }
+      },
+      "Build": {
+        "type": "object",
+        "properties": { "queued": { "type": "array", "items": { "type": "string" }, "description": "The domains this call added." } }
+      },
+      "Embedding": {
+        "type": "object",
+        "properties": {
+          "vector": { "type": "array", "items": { "type": "number" }, "description": "384 floats for the default model." },
+          "model": { "type": "string" },
+          "dim": { "type": "integer" },
+          "quantized": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
