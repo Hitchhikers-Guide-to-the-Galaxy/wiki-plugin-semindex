@@ -24,8 +24,11 @@ const listSites = argv => {
   if (!argv.farm) return [{ root, domain: path.basename(path.resolve(argv.data)) }]
   let entries
   try { entries = fs.readdirSync(root, { withFileTypes: true }) } catch { return [] }
+  // No isDirectory() pre-filter: Dirent reports symlinked sites as links, not
+  // dirs, which silently drops them. The pages/ stat below follows symlinks
+  // and is the real test of siteness.
   return entries
-    .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+    .filter(e => !e.name.startsWith('.'))
     .filter(e => {
       try { return fs.statSync(path.join(root, e.name, 'pages')).isDirectory() } catch { return false }
     })

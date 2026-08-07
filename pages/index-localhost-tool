@@ -1,0 +1,46 @@
+{
+  "title": "Index Localhost Tool",
+  "story": [
+    {
+      "type": "markdown",
+      "id": "cd9017add84b1a61",
+      "text": "Search the private localhost farm and the public mirror together, watch the semantic indexer, and trigger per-site reindexes with live feedback."
+    },
+    {
+      "type": "frame",
+      "id": "8773b010e1aa799f",
+      "text": "http://localhost/plugins/semindex/tool.html\nHEIGHT 680"
+    },
+    {
+      "type": "markdown",
+      "id": "ad8ae0a1b56352a8",
+      "text": "Results open as a ghost page in the lineup; shift-click keeps the lineup. More [[About SemIndex Plugin]]."
+    }
+  ],
+  "journal": [
+    {
+      "type": "create",
+      "item": {
+        "title": "Index Localhost Tool",
+        "story": [
+          {
+            "type": "markdown",
+            "id": "cd9017add84b1a61",
+            "text": "Search the private localhost farm and the public mirror together, watch the semantic indexer, and trigger per-site reindexes with live feedback."
+          },
+          {
+            "type": "frame",
+            "id": "8773b010e1aa799f",
+            "text": "http://localhost/plugins/semindex/tool.html\nHEIGHT 680"
+          },
+          {
+            "type": "markdown",
+            "id": "ad8ae0a1b56352a8",
+            "text": "Results open as a ghost page in the lineup; shift-click keeps the lineup. More [[About SemIndex Plugin]]."
+          }
+        ]
+      },
+      "date": 1786133741278
+    }
+  ]
+}

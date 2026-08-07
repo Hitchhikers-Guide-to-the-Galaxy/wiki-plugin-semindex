@@ -1,0 +1,254 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Index Localhost Tool</title>
+<style>
+  :root { color-scheme: light dark }
+  body { font: 14px/1.45 -apple-system, system-ui, sans-serif; margin: 10px 12px; }
+  h2 { font-size: 15px; margin: 18px 0 6px; border-bottom: 1px solid #8884; padding-bottom: 3px; }
+  .muted { color: #888; font-size: 12px; }
+  .err { color: #c33; font-size: 12px; }
+  button { font: inherit; font-size: 12px; padding: 2px 9px; border-radius: 5px;
+           border: 1px solid #8886; background: transparent; cursor: pointer; }
+  button:hover { background: #8882; }
+  button:disabled { opacity: .4; cursor: default; }
+  input[type=search] { font: inherit; width: 60%; padding: 4px 8px; border-radius: 6px;
+                       border: 1px solid #8886; background: transparent; color: inherit; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td, th { text-align: left; padding: 2px 8px 2px 0; white-space: nowrap; }
+  th { font-weight: 600; border-bottom: 1px solid #8884; }
+  td.n { text-align: right; padding-right: 14px; }
+  .chip { display: inline-block; font-size: 11px; padding: 0 7px; border-radius: 8px; }
+  .fresh   { background: #2a72; color: #2a7; }
+  .stale   { background: #b812; color: #b81; }
+  .missing { background: #c332; color: #c33; }
+  .empty   { background: #8882; color: #888; }
+  .marked, .queued, .building { background: #47a2; color: #47a; }
+  .done { background: #2a72; color: #2a7; animation: pop .5s; }
+  @keyframes pop { 0% { transform: scale(1.6) } 100% { transform: scale(1) } }
+  .spin { display: inline-block; width: 9px; height: 9px; border: 2px solid #47a5;
+          border-top-color: #47a; border-radius: 50%; vertical-align: -1px;
+          margin-right: 4px; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  ul.results { list-style: none; padding: 0; margin: 8px 0; }
+  ul.results li { margin: 5px 0; }
+  ul.results .snip { color: #888; font-size: 12px; display: block; margin-left: 22px; }
+  .flag { width: 14px; height: 14px; border-radius: 2px; vertical-align: -2px;
+          opacity: .75; transition: opacity .12s, transform .12s; margin-right: 5px; }
+  li:hover .flag { opacity: 1; transform: scale(1.35); }
+  a { color: inherit; }
+</style>
+
+<h2 style="margin-top:4px">Search farm + laptop</h2>
+<p class="muted">One semantic query across the private <code>*.localhost</code> farm
+  <em>and</em> the public-farm mirror. Results open as a ghost page in the lineup —
+  shift-click Search (or shift-Enter) keeps the lineup.</p>
+<form id="sform">
+  <input type="search" id="q" placeholder="e.g. kanidm keycloak alternative">
+  <button type="submit" id="go">Search</button>
+  <button type="button" id="openReport" disabled>Reopen as page</button>
+</form>
+<div id="searchOut"></div>
+
+<h2>Indexer</h2>
+<div id="status" class="muted">loading…</div>
+
+<h2>Coverage — private farm</h2>
+<p>
+  <span id="counts" class="muted">loading…</span>
+  <button id="buildStale">Reindex stale + missing</button>
+  <button id="buildAll">Force reindex all</button>
+</p>
+<div id="coverage"></div>
+
+<script type="module">
+  import * as frame from './frame.js'
+  const framed = window.parent !== window
+  const $ = id => document.getElementById(id)
+  const esc = s => String(s ?? '').replace(/[&<>"]/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+
+  const wireLinks = root => {
+    if (!framed) return
+    for (const a of root.querySelectorAll('a[data-site]'))
+      a.addEventListener('click', e => {
+        if (e.metaKey || e.ctrlKey) return
+        e.preventDefault()
+        frame.link({ title: a.dataset.title, site: a.dataset.site }, e.shiftKey)
+      })
+  }
+
+  const ago = ts => {
+    if (!ts) return '—'
+    const h = (Date.now() / 1000 - ts) / 3600
+    if (h < 1) return `${Math.round(h * 60)}m ago`
+    if (h < 48) return `${h.toFixed(1)}h ago`
+    return `${(h / 24).toFixed(1)}d ago`
+  }
+
+  // ── indexer status (wiki server, same origin as this asset) ───────────────
+  let lastStatus = null
+  const loadStatus = async () => {
+    try {
+      const r = await fetch('/system/semindex-status.json')
+      lastStatus = await r.json()
+      const s = lastStatus
+      const q = s.queue?.length ? ` — queue: ${s.queue.join(', ')}` : ''
+      const b = s.building ? ` — building <b>${esc(s.building.domain)}</b>
+        (${s.building.done}/${s.building.total})` : ''
+      $('status').innerHTML =
+        `wiki-plugin-semindex ${esc(s.version)} — mode <b>${esc(s.mode)}</b>, ` +
+        `state <b>${esc(s.state)}</b>${b}${q}`
+    } catch (e) {
+      $('status').innerHTML = `<span class=err>semindex status unreachable: ${esc(e)}</span>`
+    }
+  }
+
+  // ── coverage table with live rebuild feedback ─────────────────────────────
+  // pending: domain -> {phase: marked|queued|building|done, at}
+  const pending = new Map()
+  let pollTimer = null
+  let staleList = []
+  let lastCoverage = null
+
+  const phaseChip = d => {
+    const p = pending.get(d)
+    if (!p) return null
+    const label = { marked: 'marked — scan ≤10 min', queued: 'queued',
+                    building: 'building', done: 'fresh ✓' }[p.phase]
+    const spin = p.phase === 'done' ? '' : '<span class=spin></span>'
+    return `<span class="chip ${p.phase}">${spin}${label}</span>`
+  }
+
+  const render = () => {
+    if (!lastCoverage) return
+    const f = lastCoverage
+    const c = f.counts
+    $('counts').textContent =
+      `${c.fresh} fresh · ${c.stale} stale · ${c.missing} missing · ${c.empty} empty`
+    staleList = f.sites.filter(s => s.state === 'stale' ||
+      (s.state === 'missing' && s.pages > 0)).map(s => s.domain)
+    const rows = f.sites.map(s => `
+      <tr>
+        <td><a href="//${esc(s.domain)}/view/welcome-visitors"
+               data-site="${esc(s.domain)}" data-title="Welcome Visitors">${esc(s.domain)}</a></td>
+        <td class=n>${s.pages}</td>
+        <td>${ago(s.vectors)}</td>
+        <td>${phaseChip(s.domain) || `<span class="chip ${s.state}">${s.state}</span>`}</td>
+        <td>${s.pages ? `<button data-build="${esc(s.domain)}">reindex</button>` : ''}</td>
+      </tr>`).join('')
+    $('coverage').innerHTML =
+      `<table><tr><th>site</th><th>pages</th><th>vectors</th><th></th><th></th></tr>${rows}</table>`
+    wireLinks($('coverage'))
+    for (const b of $('coverage').querySelectorAll('button[data-build]'))
+      b.addEventListener('click', () => build(b.dataset.build, b))
+  }
+
+  const loadCoverage = async () => {
+    try {
+      const r = await fetch('http://api.localhost/index/coverage.json?farm=private')
+      const d = await r.json()
+      lastCoverage = d.farms.private
+      render()
+    } catch (e) {
+      $('coverage').innerHTML =
+        `<span class=err>coverage unreachable (is the Farm API on api.localhost up?): ${esc(e)}</span>`
+    }
+  }
+
+  // advance each pending domain: marked → queued → building → done
+  const poll = async () => {
+    await loadStatus()
+    await loadCoverage()
+    const s = lastStatus || {}
+    for (const [d, p] of pending) {
+      const row = lastCoverage?.sites.find(x => x.domain === d)
+      if (s.building?.domain === d) p.phase = 'building'
+      else if ((s.queue || []).includes(d)) p.phase = 'queued'
+      else if (row && row.vectors * 1000 > p.at) {
+        if (p.phase !== 'done') { p.phase = 'done'; p.doneAt = Date.now() }
+      }
+      if (p.phase === 'done' && Date.now() - p.doneAt > 8000) pending.delete(d)
+    }
+    render()
+    if (!pending.size) { clearInterval(pollTimer); pollTimer = null }
+  }
+
+  // The wiki's own /system/semindex-build.json is owner-gated and this frame
+  // runs with an opaque origin (frame-plugin sandbox), so cookies never reach
+  // it. The Farm API instead epochs the vectors mtime AND deletes
+  // semantic-meta.json; the semindex background scan (every 10 min) then does
+  // a full rebuild. Cold sites (no vectors yet) are already stale to the scan.
+  const build = async (domains, btn) => {
+    if (btn) { btn.disabled = true; btn.textContent = '…' }
+    try {
+      const r = await fetch(
+        `http://api.localhost/index/rebuild.json?domains=${encodeURIComponent(domains)}`,
+        { method: 'POST' })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const d = await r.json()
+      const now = Date.now()
+      for (const m of d.marked || []) pending.set(m, { phase: 'marked', at: now })
+      for (const s of d.skipped || [])
+        if (/cold/.test(s.why || '')) pending.set(s.domain, { phase: 'marked', at: now })
+      if (btn) btn.textContent = 'reindex'
+      if (btn) btn.disabled = false
+      if (pending.size && !pollTimer) pollTimer = setInterval(poll, 5000)
+      render()
+    } catch (e) {
+      if (btn) btn.textContent = 'failed'
+      $('status').innerHTML = `<span class=err>rebuild request failed: ${esc(e.message || e)}</span>`
+    }
+  }
+  $('buildStale').addEventListener('click', e =>
+    build(staleList.join(',') || '*', e.target))
+  $('buildAll').addEventListener('click', e => build('*', e.target))
+
+  // ── combined semantic search → ghost page in the lineup ───────────────────
+  let lastReport = null
+  let shiftHeld = false
+  $('go').addEventListener('click', e => { shiftHeld = e.shiftKey })
+  $('q').addEventListener('keydown', e => { if (e.key === 'Enter') shiftHeld = e.shiftKey })
+
+  $('sform').addEventListener('submit', async e => {
+    e.preventDefault()
+    const q = $('q').value.trim()
+    if (!q) return
+    $('searchOut').innerHTML = '<p class=muted>searching…</p>'
+    $('openReport').disabled = true
+    try {
+      // POST body parsed as JSON server-side regardless of content-type;
+      // omitting the header keeps the sandboxed fetch preflight-free.
+      const r = await fetch('/system/search-report.json', {
+        method: 'POST',
+        body: JSON.stringify({ query: q, domains: ['*'], limit: 20 }),
+      })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      lastReport = await r.json()
+      const refs = (lastReport.story || []).filter(i => i.type === 'reference')
+      if (framed) frame.open(lastReport, shiftHeld)   // the ghost page IS the result
+      if (!refs.length) {
+        $('searchOut').innerHTML = '<p class=muted>no results</p>'
+        return
+      }
+      $('searchOut').innerHTML =
+        (framed ? `<p class=muted>opened “${esc(lastReport.title)}” in the lineup</p>` : '') +
+        `<ul class=results>` + refs.map(i => `
+        <li><img class=flag src="//${esc(i.site)}/favicon.png" alt="" loading=lazy
+                 title="${esc(i.site)}"><a href="//${esc(i.site)}/${esc(i.slug)}.html"
+                 data-site="${esc(i.site)}" data-title="${esc(i.title)}">${esc(i.title)}</a>
+            <span class=snip>${esc((i.text || '').replace(/[*#\[\]]/g, '').slice(0, 110))}</span></li>`
+        ).join('') + `</ul>`
+      wireLinks($('searchOut'))
+      $('openReport').disabled = !framed
+    } catch (e2) {
+      $('searchOut').innerHTML = `<p class=err>search failed: ${esc(e2.message || e2)}</p>`
+    }
+  })
+  $('openReport').addEventListener('click', e => {
+    if (framed && lastReport) frame.open(lastReport, e.shiftKey)
+  })
+
+  loadStatus()
+  loadCoverage()
+  setInterval(loadStatus, 30000)
+</script>
