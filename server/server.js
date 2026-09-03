@@ -51,6 +51,20 @@ const requestIp = req =>
   (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
   req.socket.remoteAddress || 'unknown'
 
+// POST bodies are read off the stream: the wiki app mounts no JSON middleware
+// we can rely on. Same helper as wiki-plugin-similarity's server.
+const readBody = req =>
+  new Promise((resolve, reject) => {
+    if (req.body && typeof req.body === 'object') return resolve(req.body)
+    let data = ''
+    req.on('data', chunk => { data += chunk })
+    req.on('end', () => {
+      try { resolve(data ? JSON.parse(data) : {}) }
+      catch (e) { reject(new Error(`invalid JSON body: ${e.message}`)) }
+    })
+    req.on('error', reject)
+  })
+
 const startServer = ({ argv, app }) => {
   // One scheduler per process — init() self-guards across per-site instances.
   indexer.init(argv)
@@ -93,10 +107,22 @@ const startServer = ({ argv, app }) => {
   app.get('/system/semindex-build.json', buildHandler)
   app.post('/system/semindex-build.json', buildHandler)
 
-  app.get('/system/semindex-embed.json', async (req, res) => {
+  // GET ?text=… suits short queries; POST {text} carries whole-page prose —
+  // long text in a GET query string overflows Node's header limit and dies
+  // with 431 before any handler runs. One handler, both verbs (the house
+  // dual-verb pattern used by semindex-build.json above).
+  //
+  // POST also makes this the endpoint a remote slim similarity can point
+  // WIKI_EMBED_URL at: that client POSTs {text} and reads .vector. Unlike
+  // similarity's own /system/embed.json this route is rate-limited, which is
+  // what a public name needs (Search Tool Plan, Phase 2).
+  const embedHandler = async (req, res) => {
     cors(res)
     if (!takeToken(requestIp(req))) return res.sendStatus(429)
-    const text = req.query.text || req.query.q
+    let text = req.query.text || req.query.q
+    if (!text && req.method === 'POST') {
+      try { text = (await readBody(req)).text } catch { /* fall through to 400 */ }
+    }
     if (!text) return res.status(400).json({ error: 'text parameter required' })
     try {
       const vector = await embedLib.embed(text)
@@ -104,7 +130,9 @@ const startServer = ({ argv, app }) => {
     } catch (e) {
       res.status(500).json({ error: String((e && e.message) || e) })
     }
-  })
+  }
+  app.get('/system/semindex-embed.json', embedHandler)
+  app.post('/system/semindex-embed.json', embedHandler)
 }
 
 module.exports = { startServer }

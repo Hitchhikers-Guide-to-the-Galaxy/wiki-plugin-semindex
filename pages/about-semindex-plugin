@@ -14,7 +14,7 @@
     {
       "type": "markdown",
       "id": "7ea58be9f3ded594",
-      "text": "# Routes\n\n- GET /system/semindex-status.json \u2014 build, queue and model-download status (polled by the widget above)\n- GET|POST /system/semindex-build.json?domains=glob&force=1 \u2014 enqueue builds, owner or admin only\n- GET /system/semindex-embed.json?text=\u2026 \u2014 embed one text; a remote slim Similarity can point WIKI_EMBED_URL here"
+      "text": "# Routes\n\n- GET /system/semindex-status.json \u2014 build, queue and model-download status (polled by the widget above)\n- GET|POST /system/semindex-build.json?domains=glob&force=1 \u2014 enqueue builds, owner or admin only\n- GET|POST /system/semindex-embed.json \u2014 embed one text (`?text=\u2026` or `{text}`); a remote slim Similarity can point WIKI_EMBED_URL here"
     },
     {
       "type": "markdown",
@@ -24,7 +24,7 @@
     {
       "type": "markdown",
       "id": "827ea31bca31c963",
-      "text": "**Version:** 0.2.0\n\nSince 0.2.0 the embedder runs in a supervised child process rather than a worker thread, so a fatal error in the ONNX runtime (abort, out-of-memory, bad model file) can never take down the wiki server: it fails that one embed, and repeated crashes trip a circuit breaker that pauses indexing while it cools down. Same isolation strategy as the Similarity plugin 0.9.0."
+      "text": "**Version:** 0.2.3\n\nSince 0.2.0 the embedder runs in a supervised child process rather than a worker thread, so a fatal error in the ONNX runtime (abort, out-of-memory, bad model file) can never take down the wiki server: it fails that one embed, and repeated crashes trip a circuit breaker that pauses indexing while it cools down. Same isolation strategy as the Similarity plugin 0.9.0.\n\n0.2.3 adds POST to the embed route, so it can serve as a remote farm's `WIKI_EMBED_URL`. That matters because this route is rate-limited (a per-IP token bucket) where Similarity's own `/system/embed.json` is not \u2014 a public name needs the limited one."
     },
     {
       "type": "markdown",
