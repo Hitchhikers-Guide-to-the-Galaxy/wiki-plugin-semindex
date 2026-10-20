@@ -28,6 +28,7 @@
         "description": "Enqueues builds for the matching domains. Owner or admin only. Also accepts POST, which is the form the old FastAPI indexer used, so a remote similarity plugin can point WIKI_INDEXER_URL here unchanged.",
         "x-fedwiki-served-by": "plugin",
         "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
         "parameters": [
           { "name": "domains", "in": "query", "required": false, "description": "Comma-separated globs naming which sites to index.", "schema": { "type": "string", "default": "*" } },
           { "name": "force", "in": "query", "required": false, "description": "Rebuild even where the index looks current.", "schema": { "type": "string", "enum": ["1"] } }
@@ -44,6 +45,7 @@
         "description": "The same operation as the GET, taking domains and force in a JSON body instead.",
         "x-fedwiki-served-by": "plugin",
         "x-fedwiki-writes": true,
+        "x-fedwiki-spends": true,
         "responses": {
           "200": { "description": "What was queued, and the state afterwards.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Build" } } } },
           "403": { "description": "Not the owner or an admin." },
