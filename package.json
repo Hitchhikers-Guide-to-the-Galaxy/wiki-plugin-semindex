@@ -1,6 +1,6 @@
 {
   "name": "wiki-plugin-semindex",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Federated Wiki plugin — builds the farm's semantic vector indexes in-process (worker thread, transformers.js) so federated search needs no external indexer",
   "keywords": [
     "wiki",
